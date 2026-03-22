@@ -1,5 +1,7 @@
 package com.example.demo.config;
 
+import javax.sql.DataSource;
+
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
@@ -8,12 +10,14 @@ import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.infrastructure.item.ItemProcessor;
 import org.springframework.batch.infrastructure.item.ItemReader;
 import org.springframework.batch.infrastructure.item.ItemWriter;
+import org.springframework.batch.infrastructure.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.batch.infrastructure.item.file.FlatFileItemReader;
 import org.springframework.batch.infrastructure.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.infrastructure.item.file.mapping.FieldSetMapper;
 import org.springframework.batch.infrastructure.item.file.transform.FieldSet;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.validation.BindException;
 
@@ -21,6 +25,7 @@ import com.example.demo.domain.FullNameMember;
 import com.example.demo.domain.Member;
 
 @Configuration
+@Import({ DataSourceConfig.class })
 public class BatchConfig {
 
 	@Bean
@@ -40,18 +45,17 @@ public class BatchConfig {
 	}
 
 	@Bean
-	ItemWriter<FullNameMember> itemWriter() {
-		return (chunk) -> {
-			chunk.getItems().stream().forEach(System.out::println);
-		};
+	ItemWriter<FullNameMember> itemWriter(DataSource dataSource) {
+		return new JdbcBatchItemWriterBuilder<FullNameMember>().dataSource(dataSource).sql(
+				"INSERT INTO member (id, first_name, last_name, full_name) VALUES (:id, :firstName, :lastName, :fullName)")
+				.beanMapped().build();
 	}
 
 	@Bean
 	Step step(JobRepository jobRepository, ItemReader<Member> itemReader,
 			ItemProcessor<Member, FullNameMember> itemProcessor, ItemWriter<FullNameMember> itemWriter) {
 		return new StepBuilder(jobRepository).<Member, FullNameMember>chunk(1).reader(itemReader)
-				.processor(itemProcessor).writer(itemWriter)
-				.build();
+				.processor(itemProcessor).writer(itemWriter).build();
 	}
 
 	@Bean
