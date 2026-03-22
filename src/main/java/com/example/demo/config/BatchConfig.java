@@ -4,6 +4,7 @@ import javax.sql.DataSource;
 
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.listener.StepExecutionListener;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
@@ -19,8 +20,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.validation.BindException;
 
+import com.example.demo.MemberStepListener;
 import com.example.demo.domain.FullNameMember;
 import com.example.demo.domain.Member;
 
@@ -53,9 +56,15 @@ public class BatchConfig {
 
 	@Bean
 	Step step(JobRepository jobRepository, ItemReader<Member> itemReader,
-			ItemProcessor<Member, FullNameMember> itemProcessor, ItemWriter<FullNameMember> itemWriter) {
+			ItemProcessor<Member, FullNameMember> itemProcessor, ItemWriter<FullNameMember> itemWriter,
+			StepExecutionListener stepExecutionListener) {
 		return new StepBuilder(jobRepository).<Member, FullNameMember>chunk(1).reader(itemReader)
-				.processor(itemProcessor).writer(itemWriter).build();
+				.processor(itemProcessor).writer(itemWriter).listener(stepExecutionListener).build();
+	}
+
+	@Bean
+	StepExecutionListener memberStepListener(DataSource dataSource) {
+		return new MemberStepListener(new JdbcTemplate(dataSource));
 	}
 
 	@Bean
