@@ -16,6 +16,7 @@ import org.springframework.batch.infrastructure.item.file.FlatFileItemReader;
 import org.springframework.batch.infrastructure.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.infrastructure.item.file.mapping.FieldSetMapper;
 import org.springframework.batch.infrastructure.item.file.transform.FieldSet;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -48,8 +49,8 @@ public class BatchConfig {
 	}
 
 	@Bean
-	ItemWriter<FullNameMember> itemWriter(DataSource dataSource) {
-		return new JdbcBatchItemWriterBuilder<FullNameMember>().dataSource(dataSource).sql(
+	ItemWriter<FullNameMember> itemWriter(@Qualifier("businessDataSource") DataSource businessDataSource) {
+		return new JdbcBatchItemWriterBuilder<FullNameMember>().dataSource(businessDataSource).sql(
 				"INSERT INTO member (id, first_name, last_name, full_name) VALUES (:id, :firstName, :lastName, :fullName)")
 				.beanMapped().build();
 	}
@@ -63,8 +64,8 @@ public class BatchConfig {
 	}
 
 	@Bean
-	StepExecutionListener memberStepListener(DataSource dataSource) {
-		return new MemberStepListener(new JdbcTemplate(dataSource));
+	StepExecutionListener memberStepListener(@Qualifier("businessDataSource") DataSource businessDataSource) {
+		return new MemberStepListener(new JdbcTemplate(businessDataSource));
 	}
 
 	@Bean
