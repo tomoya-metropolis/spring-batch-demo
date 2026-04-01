@@ -5,6 +5,7 @@ import javax.sql.DataSource;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.listener.StepExecutionListener;
+import org.springframework.batch.core.partition.Partitioner;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
@@ -21,12 +22,16 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.core.task.VirtualThreadTaskExecutor;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.validation.BindException;
 
 import com.example.demo.MemberStepListener;
 import com.example.demo.domain.FullNameMember;
 import com.example.demo.domain.Member;
+import com.example.demo.partition.MemberPartitioner;
 
 @Configuration
 @Import({ DataSourceConfig.class })
@@ -56,21 +61,33 @@ public class BatchConfig {
 	}
 
 	@Bean
-	Step step(JobRepository jobRepository, ItemReader<Member> itemReader,
-			ItemProcessor<Member, FullNameMember> itemProcessor, ItemWriter<FullNameMember> itemWriter,
-			StepExecutionListener stepExecutionListener) {
-		return new StepBuilder(jobRepository).<Member, FullNameMember>chunk(1).reader(itemReader)
-				.processor(itemProcessor).writer(itemWriter).listener(stepExecutionListener).build();
+	Step step(JobRepository jobRepository,
+			@Qualifier("transactionManaber") PlatformTransactionManager transactionManager,
+			ItemReader<Member> itemReader, ItemProcessor<Member, FullNameMember> itemProcessor,
+			ItemWriter<FullNameMember> itemWriter, StepExecutionListener stepExecutionListener) {
+		return new StepBuilder(jobRepository).<Member, FullNameMember>chunk(1).transactionManager(transactionManager)
+				.reader(itemReader).processor(itemProcessor).writer(itemWriter).listener(stepExecutionListener).build();
 	}
 
 	@Bean
-	StepExecutionListener memberStepListener(@Qualifier("businessDataSource") DataSource businessDataSource) {
-		return new MemberStepListener(new JdbcTemplate(businessDataSource));
+	StepExecutionListener memberStepListener(@Qualifier("dataSource") DataSource dataSource,
+			@Qualifier("businessDataSource") DataSource businessDataSource) {
+		return new MemberStepListener(new JdbcTemplate(dataSource), new JdbcTemplate(businessDataSource));
 	}
 
 	@Bean
 	Job job(JobRepository jobRepository, Step step) {
 		return new JobBuilder(jobRepository).start(step).build();
+	}
+
+	@Bean
+	Partitioner partitioner(@Qualifier("dataSource") DataSource dataSource) {
+		return new MemberPartitioner(new JdbcTemplate(dataSource));
+	}
+
+	@Bean
+	TaskExecutor taskExecutor() {
+		return new VirtualThreadTaskExecutor();
 	}
 
 	private static class MemberMapper implements FieldSetMapper<Member> {
