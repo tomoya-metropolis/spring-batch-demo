@@ -5,7 +5,6 @@ import javax.sql.DataSource;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.builder.JobBuilder;
-import org.springframework.batch.core.listener.StepExecutionListener;
 import org.springframework.batch.core.partition.Partitioner;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
@@ -28,7 +27,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.validation.BindException;
 
-import com.example.demo.MemberStepListener;
+import com.example.demo.datasource.MemberDataSource;
 import com.example.demo.domain.FullNameMember;
 import com.example.demo.domain.Member;
 import com.example.demo.partition.MemberPartitioner;
@@ -63,8 +62,10 @@ public class BatchConfig {
 
 	@Bean
 	Step masterStep(JobRepository jobRepository, @Qualifier("dataSource") DataSource dataSource,
+			@Qualifier("memberDataSource") MemberDataSource memberDataSource,
 			@Qualifier("transactionManaber") PlatformTransactionManager transactionManager) {
-		return new StepBuilder(jobRepository).partitioner("memberPartitioner", memberPartitioner(dataSource))
+		return new StepBuilder(jobRepository)
+				.partitioner("memberPartitioner", partitioner(dataSource, memberDataSource))
 				.step(workerStep(jobRepository, transactionManager)).gridSize(10).taskExecutor(taskExecutor()).build();
 	}
 
@@ -76,30 +77,22 @@ public class BatchConfig {
 	}
 
 	@Bean
-	StepExecutionListener memberStepListener(@Qualifier("dataSource") DataSource dataSource,
-			@Qualifier("businessDataSource") DataSource businessDataSource) {
-		return new MemberStepListener(new JdbcTemplate(dataSource), new JdbcTemplate(businessDataSource));
-	}
-
-	@Bean
 	Job job(JobRepository jobRepository, @Qualifier("dataSource") DataSource dataSource,
+			@Qualifier("memberDataSource") MemberDataSource memberDataSource,
 			@Qualifier("transactionManaber") PlatformTransactionManager transactionManager) {
-		return new JobBuilder(jobRepository).start(masterStep(jobRepository, dataSource, transactionManager)).build();
+		return new JobBuilder(jobRepository)
+				.start(masterStep(jobRepository, dataSource, memberDataSource, transactionManager)).build();
 	}
 
 	@Bean
-	Partitioner partitioner(@Qualifier("dataSource") DataSource dataSource) {
-		return new MemberPartitioner(new JdbcTemplate(dataSource));
+	Partitioner partitioner(@Qualifier("dataSource") DataSource dataSource,
+			@Qualifier("memberDataSource") MemberDataSource memberDataSource) {
+		return new MemberPartitioner(new JdbcTemplate(dataSource), memberDataSource);
 	}
 
 	@Bean
 	TaskExecutor taskExecutor() {
 		return new VirtualThreadTaskExecutor();
-	}
-
-	@Bean
-	MemberPartitioner memberPartitioner(@Qualifier("dataSource") DataSource dataSource) {
-		return new MemberPartitioner(new JdbcTemplate(dataSource));
 	}
 
 	private static class MemberMapper implements FieldSetMapper<Member> {

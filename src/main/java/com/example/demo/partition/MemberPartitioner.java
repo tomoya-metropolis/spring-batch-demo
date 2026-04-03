@@ -61,6 +61,7 @@ public class MemberPartitioner implements Partitioner {
 			DataSource dataSource = DataSourceBuilder.create().driverClassName("org.postgresql.Driver")
 					.url("jdbc:postgresql://localhost:5432/yourdb").username("youruser").password("yourpassword")
 					.build();
+			this.memberDataSource.addDataSource(reservationList.get(index).name(), dataSource);
 
 			index++;
 		}

@@ -10,6 +10,8 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import com.example.demo.datasource.MemberDataSource;
+
 @Configuration
 public class DataSourceConfig {
 
@@ -20,10 +22,9 @@ public class DataSourceConfig {
 		return DataSourceBuilder.create().build();
 	}
 
-	@Bean("businessDataSource")
-	@ConfigurationProperties("spring.business.datasource")
-	DataSource businessDataSource() {
-		return DataSourceBuilder.create().build();
+	@Bean("memberDataSource")
+	MemberDataSource memberDataSource() {
+		return new MemberDataSource();
 	}
 
 	@Bean("transactionManaber")
