@@ -3,6 +3,8 @@ CREATE TABLE reservation (
 	file_name VARCHAR(100) NOT NULL
 );
 INSERT INTO reservation VALUES ('test01', 'bon_jovi.csv');
+INSERT INTO reservation VALUES ('test02', 'metallica.csv');
+INSERT INTO reservation VALUES ('test03', 'iron_maiden.csv');
 
 CREATE TABLE database (
 	name VARCHAR(20) NOT NULL PRIMARY KEY,

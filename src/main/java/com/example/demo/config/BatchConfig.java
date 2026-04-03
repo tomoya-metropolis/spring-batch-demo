@@ -2,6 +2,7 @@ package com.example.demo.config;
 
 import javax.sql.DataSource;
 
+import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.listener.StepExecutionListener;
@@ -10,14 +11,13 @@ import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.infrastructure.item.ItemProcessor;
-import org.springframework.batch.infrastructure.item.ItemReader;
 import org.springframework.batch.infrastructure.item.ItemWriter;
-import org.springframework.batch.infrastructure.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.batch.infrastructure.item.file.FlatFileItemReader;
 import org.springframework.batch.infrastructure.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.infrastructure.item.file.mapping.FieldSetMapper;
 import org.springframework.batch.infrastructure.item.file.transform.FieldSet;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -38,14 +38,16 @@ import com.example.demo.partition.MemberPartitioner;
 public class BatchConfig {
 
 	@Bean
-	FlatFileItemReader<Member> itemReader() {
+	@StepScope
+	FlatFileItemReader<Member> itemReader(@Value("#{stepExecutionContext['fileName']}") String fileName) {
 		return new FlatFileItemReaderBuilder<Member>().name("memberItemReader")
-				.resource(new ClassPathResource("bon_jovi.csv"))
+				.resource(new ClassPathResource(fileName))
 				.delimited(config -> config.delimiter(",").quoteCharacter('"').names("id", "first_name", "last_name"))
 				.fieldSetMapper(new MemberMapper()).linesToSkip(1).build();
 	}
 
 	@Bean
+	@StepScope
 	ItemProcessor<Member, FullNameMember> itemProcessor() {
 		return item -> {
 			return new FullNameMember(item.id(), item.firstName(), item.lastName(),
@@ -54,19 +56,23 @@ public class BatchConfig {
 	}
 
 	@Bean
-	ItemWriter<FullNameMember> itemWriter(@Qualifier("businessDataSource") DataSource businessDataSource) {
-		return new JdbcBatchItemWriterBuilder<FullNameMember>().dataSource(businessDataSource).sql(
-				"INSERT INTO member (id, first_name, last_name, full_name) VALUES (:id, :firstName, :lastName, :fullName)")
-				.beanMapped().build();
+	@StepScope
+	ItemWriter<FullNameMember> itemWriter() {
+		return chunk -> chunk.getItems().stream().forEach(System.out::println);
 	}
 
 	@Bean
-	Step step(JobRepository jobRepository,
-			@Qualifier("transactionManaber") PlatformTransactionManager transactionManager,
-			ItemReader<Member> itemReader, ItemProcessor<Member, FullNameMember> itemProcessor,
-			ItemWriter<FullNameMember> itemWriter, StepExecutionListener stepExecutionListener) {
+	Step masterStep(JobRepository jobRepository, @Qualifier("dataSource") DataSource dataSource,
+			@Qualifier("transactionManaber") PlatformTransactionManager transactionManager) {
+		return new StepBuilder(jobRepository).partitioner("memberPartitioner", memberPartitioner(dataSource))
+				.step(workerStep(jobRepository, transactionManager)).gridSize(10).taskExecutor(taskExecutor()).build();
+	}
+
+	@Bean
+	Step workerStep(JobRepository jobRepository,
+			@Qualifier("transactionManaber") PlatformTransactionManager transactionManager) {
 		return new StepBuilder(jobRepository).<Member, FullNameMember>chunk(1).transactionManager(transactionManager)
-				.reader(itemReader).processor(itemProcessor).writer(itemWriter).listener(stepExecutionListener).build();
+				.reader(itemReader(null)).processor(itemProcessor()).writer(itemWriter()).build();
 	}
 
 	@Bean
@@ -76,8 +82,9 @@ public class BatchConfig {
 	}
 
 	@Bean
-	Job job(JobRepository jobRepository, Step step) {
-		return new JobBuilder(jobRepository).start(step).build();
+	Job job(JobRepository jobRepository, @Qualifier("dataSource") DataSource dataSource,
+			@Qualifier("transactionManaber") PlatformTransactionManager transactionManager) {
+		return new JobBuilder(jobRepository).start(masterStep(jobRepository, dataSource, transactionManager)).build();
 	}
 
 	@Bean
@@ -88,6 +95,11 @@ public class BatchConfig {
 	@Bean
 	TaskExecutor taskExecutor() {
 		return new VirtualThreadTaskExecutor();
+	}
+
+	@Bean
+	MemberPartitioner memberPartitioner(@Qualifier("dataSource") DataSource dataSource) {
+		return new MemberPartitioner(new JdbcTemplate(dataSource));
 	}
 
 	private static class MemberMapper implements FieldSetMapper<Member> {

@@ -5,11 +5,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.sql.DataSource;
+
 import org.springframework.batch.core.partition.Partitioner;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
+import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.util.CollectionUtils;
 
+import com.example.demo.datasource.MemberDataSource;
 import com.example.demo.domain.DataSourceProperties;
 import com.example.demo.domain.Reservation;
 
@@ -17,8 +21,11 @@ public class MemberPartitioner implements Partitioner {
 
 	private final JdbcOperations jdbcOperations;
 
-	public MemberPartitioner(JdbcOperations jdbcOperations) {
+	private final MemberDataSource memberDataSource;
+
+	public MemberPartitioner(JdbcOperations jdbcOperations, MemberDataSource memberDataSource) {
 		this.jdbcOperations = jdbcOperations;
+		this.memberDataSource = memberDataSource;
 	}
 
 	@Override
@@ -44,15 +51,18 @@ public class MemberPartitioner implements Partitioner {
 				nameList.toArray());
 
 		Map<String, ExecutionContext> map = new HashMap<>();
+		int index = 0;
 		for (DataSourceProperties dataSourceProperties : dataSourcePropertiesList) {
 			ExecutionContext executionContext = new ExecutionContext();
-			executionContext.put("url",
-					"jdbc:postgresql://" + dataSourceProperties.host() + ":5432/" + dataSourceProperties.name());
-			executionContext.put("userName", dataSourceProperties.userName());
-			executionContext.put("password", dataSourceProperties.passwword());
-			executionContext.put("driverClassName", "org.postgresql.Driver");
+			executionContext.put("fileName", reservationList.get(index).fileName());
 
 			map.put(dataSourceProperties.name(), executionContext);
+
+			DataSource dataSource = DataSourceBuilder.create().driverClassName("org.postgresql.Driver")
+					.url("jdbc:postgresql://localhost:5432/yourdb").username("youruser").password("yourpassword")
+					.build();
+
+			index++;
 		}
 
 		return map;
