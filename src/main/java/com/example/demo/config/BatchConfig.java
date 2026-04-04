@@ -5,12 +5,14 @@ import javax.sql.DataSource;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.listener.StepExecutionListener;
 import org.springframework.batch.core.partition.Partitioner;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.infrastructure.item.ItemProcessor;
 import org.springframework.batch.infrastructure.item.ItemWriter;
+import org.springframework.batch.infrastructure.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.batch.infrastructure.item.file.FlatFileItemReader;
 import org.springframework.batch.infrastructure.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.infrastructure.item.file.mapping.FieldSetMapper;
@@ -24,12 +26,14 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.VirtualThreadTaskExecutor;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.validation.BindException;
 
-import com.example.demo.datasource.MemberDataSource;
+import com.example.demo.datasource.MemberRoutingDataSource;
 import com.example.demo.domain.FullNameMember;
 import com.example.demo.domain.Member;
+import com.example.demo.listener.MemberStepExecutionListener;
 import com.example.demo.partition.MemberPartitioner;
 
 @Configuration
@@ -56,37 +60,50 @@ public class BatchConfig {
 
 	@Bean
 	@StepScope
-	ItemWriter<FullNameMember> itemWriter() {
-		return chunk -> chunk.getItems().stream().forEach(System.out::println);
+	ItemWriter<FullNameMember> itemWriter(@Qualifier("memberDataSource") DataSource memberDataSource) {
+		return new JdbcBatchItemWriterBuilder<FullNameMember>()
+				.namedParametersJdbcTemplate(new NamedParameterJdbcTemplate(memberDataSource))
+				.sql("INSERT INTO member (id, first_name, last_name, full_name) VALUES (:id, :firstName, :lastName, :fullName)")
+				.beanMapped().build();
 	}
 
 	@Bean
 	Step masterStep(JobRepository jobRepository, @Qualifier("dataSource") DataSource dataSource,
-			@Qualifier("memberDataSource") MemberDataSource memberDataSource,
-			@Qualifier("transactionManaber") PlatformTransactionManager transactionManager) {
-		return new StepBuilder(jobRepository)
-				.partitioner("memberPartitioner", partitioner(dataSource, memberDataSource))
-				.step(workerStep(jobRepository, transactionManager)).gridSize(10).taskExecutor(taskExecutor()).build();
+			@Qualifier("memberRoutingDataSource") MemberRoutingDataSource memberRoutingDataSource,
+			@Qualifier("memberDataSource") DataSource memberDataSource,
+			@Qualifier("memberTransactionManager") PlatformTransactionManager memberTransactionManager) {
+		return new StepBuilder("masterStep", jobRepository)
+				.partitioner("memberPartitioner", partitioner(dataSource, memberRoutingDataSource))
+				.step(workerStep(jobRepository, memberRoutingDataSource, memberTransactionManager)).gridSize(10)
+				.taskExecutor(taskExecutor()).build();
 	}
 
 	@Bean
-	Step workerStep(JobRepository jobRepository,
-			@Qualifier("transactionManaber") PlatformTransactionManager transactionManager) {
-		return new StepBuilder(jobRepository).<Member, FullNameMember>chunk(1).transactionManager(transactionManager)
-				.reader(itemReader(null)).processor(itemProcessor()).writer(itemWriter()).build();
+	Step workerStep(JobRepository jobRepository, @Qualifier("memberDataSource") DataSource memberDataSource,
+			@Qualifier("memberTransactionManager") PlatformTransactionManager memberTransactionManager) {
+		return new StepBuilder("slaveStep",jobRepository).<Member, FullNameMember>chunk(100)
+				.transactionManager(memberTransactionManager).listener(memberStepExecutionListener())
+				.reader(itemReader(null)).processor(itemProcessor()).writer(itemWriter(memberDataSource)).build();
+	}
+
+	@Bean
+	StepExecutionListener memberStepExecutionListener() {
+		return new MemberStepExecutionListener();
 	}
 
 	@Bean
 	Job job(JobRepository jobRepository, @Qualifier("dataSource") DataSource dataSource,
-			@Qualifier("memberDataSource") MemberDataSource memberDataSource,
-			@Qualifier("transactionManaber") PlatformTransactionManager transactionManager) {
-		return new JobBuilder(jobRepository)
-				.start(masterStep(jobRepository, dataSource, memberDataSource, transactionManager)).build();
+			@Qualifier("memberRoutingDataSource") MemberRoutingDataSource memberRoutingDataSource,
+			@Qualifier("memberDataSource") DataSource memberDataSource,
+			@Qualifier("memberTransactionManager") PlatformTransactionManager memberTransactionManager) {
+		return new JobBuilder(jobRepository).start(
+				masterStep(jobRepository, dataSource, memberRoutingDataSource, memberDataSource, memberTransactionManager))
+				.build();
 	}
 
 	@Bean
 	Partitioner partitioner(@Qualifier("dataSource") DataSource dataSource,
-			@Qualifier("memberDataSource") MemberDataSource memberDataSource) {
+			@Qualifier("memberRoutingDataSource") MemberRoutingDataSource memberDataSource) {
 		return new MemberPartitioner(new JdbcTemplate(dataSource), memberDataSource);
 	}
 

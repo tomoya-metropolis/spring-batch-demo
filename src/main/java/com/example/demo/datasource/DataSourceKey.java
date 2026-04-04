@@ -12,4 +12,8 @@ public class DataSourceKey {
 		KEY.set(key);
 	}
 
+	public static void clearDataSourceKey() {
+		KEY.remove();
+	}
+
 }

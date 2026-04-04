@@ -13,17 +13,17 @@ import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.util.CollectionUtils;
 
-import com.example.demo.datasource.MemberDataSource;
-import com.example.demo.domain.DataSourceProperties;
+import com.example.demo.datasource.DataSourceProperties;
+import com.example.demo.datasource.MemberRoutingDataSource;
 import com.example.demo.domain.Reservation;
 
 public class MemberPartitioner implements Partitioner {
 
 	private final JdbcOperations jdbcOperations;
 
-	private final MemberDataSource memberDataSource;
+	private final MemberRoutingDataSource memberDataSource;
 
-	public MemberPartitioner(JdbcOperations jdbcOperations, MemberDataSource memberDataSource) {
+	public MemberPartitioner(JdbcOperations jdbcOperations, MemberRoutingDataSource memberDataSource) {
 		this.jdbcOperations = jdbcOperations;
 		this.memberDataSource = memberDataSource;
 	}
@@ -54,13 +54,14 @@ public class MemberPartitioner implements Partitioner {
 		int index = 0;
 		for (DataSourceProperties dataSourceProperties : dataSourcePropertiesList) {
 			ExecutionContext executionContext = new ExecutionContext();
+			executionContext.put("name", reservationList.get(index).name());
 			executionContext.put("fileName", reservationList.get(index).fileName());
 
 			map.put(dataSourceProperties.name(), executionContext);
 
 			DataSource dataSource = DataSourceBuilder.create().driverClassName("org.postgresql.Driver")
-					.url("jdbc:postgresql://localhost:5432/yourdb").username("youruser").password("yourpassword")
-					.build();
+					.url("jdbc:postgresql://" + dataSourceProperties.host() + ":5432/" + dataSourceProperties.name())
+					.username(dataSourceProperties.userName()).password(dataSourceProperties.password()).build();
 			this.memberDataSource.addDataSource(reservationList.get(index).name(), dataSource);
 
 			index++;
