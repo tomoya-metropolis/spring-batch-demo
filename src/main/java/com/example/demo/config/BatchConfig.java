@@ -6,7 +6,6 @@ import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.listener.StepExecutionListener;
-import org.springframework.batch.core.partition.Partitioner;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
@@ -37,7 +36,7 @@ import com.example.demo.listener.MemberStepExecutionListener;
 import com.example.demo.partition.MemberPartitioner;
 
 @Configuration
-@Import({ DataSourceConfig.class })
+@Import({ DataSourceConfig.class, NativeHintsConfig.class })
 public class BatchConfig {
 
 	@Bean
@@ -67,22 +66,21 @@ public class BatchConfig {
 				.beanMapped().build();
 	}
 
-	@Bean
-	Step masterStep(JobRepository jobRepository, @Qualifier("dataSource") DataSource dataSource,
-			@Qualifier("memberRoutingDataSource") MemberRoutingDataSource memberRoutingDataSource,
-			@Qualifier("memberDataSource") DataSource memberDataSource,
-			@Qualifier("memberTransactionManager") PlatformTransactionManager memberTransactionManager) {
+	@Bean("masterStep")
+	Step masterStep(JobRepository jobRepository, MemberPartitioner partitioner,
+			Step workerStep, TaskExecutor taskExecutor) {
 		return new StepBuilder("masterStep", jobRepository)
-				.partitioner("memberPartitioner", partitioner(dataSource, memberRoutingDataSource))
-				.step(workerStep(jobRepository, memberRoutingDataSource, memberTransactionManager)).gridSize(10)
-				.taskExecutor(taskExecutor()).build();
+				.partitioner("memberPartitioner", partitioner)
+				.step(workerStep).gridSize(10)
+				.taskExecutor(taskExecutor).build();
 	}
 
-	@Bean
+	@Bean("workerStep")
 	Step workerStep(JobRepository jobRepository, @Qualifier("memberDataSource") DataSource memberDataSource,
-			@Qualifier("memberTransactionManager") PlatformTransactionManager memberTransactionManager) {
+			@Qualifier("memberTransactionManager") PlatformTransactionManager memberTransactionManager,
+			StepExecutionListener memberStepExecutionListener) {
 		return new StepBuilder("slaveStep",jobRepository).<Member, FullNameMember>chunk(100)
-				.transactionManager(memberTransactionManager).listener(memberStepExecutionListener())
+				.transactionManager(memberTransactionManager).listener(memberStepExecutionListener)
 				.reader(itemReader(null)).processor(itemProcessor()).writer(itemWriter(memberDataSource)).build();
 	}
 
@@ -92,19 +90,14 @@ public class BatchConfig {
 	}
 
 	@Bean
-	Job job(JobRepository jobRepository, @Qualifier("dataSource") DataSource dataSource,
-			@Qualifier("memberRoutingDataSource") MemberRoutingDataSource memberRoutingDataSource,
-			@Qualifier("memberDataSource") DataSource memberDataSource,
-			@Qualifier("memberTransactionManager") PlatformTransactionManager memberTransactionManager) {
-		return new JobBuilder(jobRepository).start(
-				masterStep(jobRepository, dataSource, memberRoutingDataSource, memberDataSource, memberTransactionManager))
-				.build();
+	Job job(JobRepository jobRepository, @Qualifier("masterStep") Step masterStep) {
+		return new JobBuilder(jobRepository).start(masterStep).build();
 	}
 
 	@Bean
-	Partitioner partitioner(@Qualifier("dataSource") DataSource dataSource,
+	MemberPartitioner partitioner(JdbcTemplate jdbcTemplate,
 			@Qualifier("memberRoutingDataSource") MemberRoutingDataSource memberDataSource) {
-		return new MemberPartitioner(new JdbcTemplate(dataSource), memberDataSource);
+		return new MemberPartitioner(jdbcTemplate, memberDataSource);
 	}
 
 	@Bean
@@ -112,7 +105,7 @@ public class BatchConfig {
 		return new VirtualThreadTaskExecutor();
 	}
 
-	private static class MemberMapper implements FieldSetMapper<Member> {
+	public static class MemberMapper implements FieldSetMapper<Member> {
 
 		@Override
 		public Member mapFieldSet(FieldSet fieldSet) throws BindException {
