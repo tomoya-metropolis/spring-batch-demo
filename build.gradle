@@ -2,7 +2,7 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '4.0.2'
 	id 'io.spring.dependency-management' version '1.1.7'
-	id 'org.graalvm.buildtools.native' version '0.11.4'
+	id 'org.graalvm.buildtools.native' version '0.10.4'
 }
 
 group = 'com.example'
@@ -19,33 +19,27 @@ repositories {
 	mavenCentral()
 }
 
-graalvmNative {
-	binaries {
-		main {
-			buildArgs.add('--initialize-at-build-time=org.h2.Driver')
-			buildArgs.add('--initialize-at-build-time=org.postgresql.Driver')
-			buildArgs.add('--initialize-at-build-time=org.postgresql.util.SharedTimer')
-			buildArgs.add('--initialize-at-build-time=org.postgresql.jdbc.ResourceLock')
-			buildArgs.add('-H:+ReportExceptionStackTraces')
-			buildArgs.add('--enable-url-protocols=http,https')
-			buildArgs.add('--verbose')
-		}
-	}
-	metadataRepository {
-		enabled = true
-	}
-}
-
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-h2console'
 	implementation 'org.springframework.boot:spring-boot-starter-batch'
 	implementation 'org.springframework.boot:spring-boot-starter-jdbc'
-	implementation 'com.h2database:h2'
-	implementation 'org.postgresql:postgresql'
+	runtimeOnly 'com.h2database:h2'
+	runtimeOnly 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-batch-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+graalvmNative {
+	binaries {
+		main {
+			imageName = 'spring-batch-demo'
+			mainClass = 'com.example.demo.SpringBatchDemoApplication'
+			buildArgs.add('--verbose')
+			buildArgs.add('-H:+ReportExceptionStackTraces')
+		}
+	}
 }
