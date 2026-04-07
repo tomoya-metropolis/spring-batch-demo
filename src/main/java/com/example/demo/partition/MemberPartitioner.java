@@ -7,7 +7,7 @@ import java.util.Map;
 
 import javax.sql.DataSource;
 
-import org.springframework.batch.core.partition.Partitioner;
+import org.springframework.batch.core.partition.support.MultiResourcePartitioner;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.jdbc.core.JdbcOperations;
@@ -17,7 +17,7 @@ import com.example.demo.datasource.DataSourceProperties;
 import com.example.demo.datasource.MemberRoutingDataSource;
 import com.example.demo.domain.Reservation;
 
-public class MemberPartitioner implements Partitioner {
+public class MemberPartitioner extends MultiResourcePartitioner {
 
 	private final JdbcOperations jdbcOperations;
 

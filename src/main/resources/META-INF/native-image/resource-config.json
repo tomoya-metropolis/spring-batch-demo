@@ -1,0 +1,21 @@
+{
+  "resources": {
+    "includes": [
+      {
+        "pattern": "\\Qbon_jovi.csv\\E"
+      },
+      {
+        "pattern": "\\Qmetallica.csv\\E"
+      },
+      {
+        "pattern": "\\Qiron_maiden.csv\\E"
+      },
+      {
+        "pattern": "\\Qschema.sql\\E"
+      },
+      {
+        "pattern": "\\Qapplication.properties\\E"
+      }
+    ]
+  }
+}

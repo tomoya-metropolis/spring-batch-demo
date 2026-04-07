@@ -20,6 +20,17 @@ repositories {
 }
 
 graalvmNative {
+	binaries {
+		main {
+			buildArgs.add('--initialize-at-build-time=org.h2.Driver')
+			buildArgs.add('--initialize-at-build-time=org.postgresql.Driver')
+			buildArgs.add('--initialize-at-build-time=org.postgresql.util.SharedTimer')
+			buildArgs.add('--initialize-at-build-time=org.postgresql.jdbc.ResourceLock')
+			buildArgs.add('-H:+ReportExceptionStackTraces')
+			buildArgs.add('--enable-url-protocols=http,https')
+			buildArgs.add('--verbose')
+		}
+	}
 	metadataRepository {
 		enabled = true
 	}
@@ -29,8 +40,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-h2console'
 	implementation 'org.springframework.boot:spring-boot-starter-batch'
 	implementation 'org.springframework.boot:spring-boot-starter-jdbc'
-	runtimeOnly 'com.h2database:h2'
-	runtimeOnly 'org.postgresql:postgresql'
+	implementation 'com.h2database:h2'
+	implementation 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-batch-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
