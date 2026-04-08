@@ -3,10 +3,30 @@ services:
     image: postgres:latest
     container_name: postgresql
     restart: always
-    ports: 
+    ports:
       - "5432:5432"
     volumes:
       - ./postgresql/init:/docker-entrypoint-initdb.d
     environment:
       POSTGRES_USER: "test"
       POSTGRES_PASSWORD: "test"
+
+  pushgateway:
+    image: prom/pushgateway:latest
+    container_name: pushgateway
+    restart: always
+    ports:
+      - "9091:9091"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    depends_on:
+      - pushgateway
