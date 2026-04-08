@@ -5,6 +5,7 @@ import javax.sql.DataSource;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.listener.JobExecutionListener;
 import org.springframework.batch.core.listener.StepExecutionListener;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
@@ -33,7 +34,9 @@ import com.example.demo.datasource.MemberRoutingDataSource;
 import com.example.demo.domain.FullNameMember;
 import com.example.demo.domain.Member;
 import com.example.demo.listener.MemberStepExecutionListener;
+import com.example.demo.listener.MetricsPushJobListener;
 import com.example.demo.partition.MemberPartitioner;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 
 @Configuration
 @Import({ DataSourceConfig.class, NativeHintsConfig.class })
@@ -90,8 +93,16 @@ public class BatchConfig {
 	}
 
 	@Bean
-	Job job(JobRepository jobRepository, @Qualifier("masterStep") Step masterStep) {
-		return new JobBuilder(jobRepository).start(masterStep).build();
+	Job job(JobRepository jobRepository, @Qualifier("masterStep") Step masterStep,
+			JobExecutionListener metricsPushJobListener) {
+		return new JobBuilder(jobRepository).start(masterStep).listener(metricsPushJobListener).build();
+	}
+
+	@Bean
+	JobExecutionListener metricsPushJobListener(PrometheusMeterRegistry registry,
+			@Value("${management.prometheus.metrics.export.pushgateway.base-url}") String pushgatewayUrl,
+			@Value("${management.prometheus.metrics.export.pushgateway.job}") String jobName) {
+		return new MetricsPushJobListener(registry, pushgatewayUrl, jobName);
 	}
 
 	@Bean
