@@ -43,6 +43,11 @@ graalvmNative {
 			mainClass = 'com.example.demo.SpringBatchDemoApplication'
 			buildArgs.add('--verbose')
 			buildArgs.add('-H:+ReportExceptionStackTraces')
+			// Enable DNS resolution at runtime
+			buildArgs.add('--enable-url-protocols=http,https')
+			buildArgs.add('-H:+AddAllCharsets')
+			// Enable JNI for network operations
+			buildArgs.add('-H:+JNI')
 		}
 	}
 }
