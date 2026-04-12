@@ -25,7 +25,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.VirtualThreadTaskExecutor;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.validation.BindException;
@@ -36,7 +35,9 @@ import com.example.demo.domain.Member;
 import com.example.demo.listener.MemberStepExecutionListener;
 import com.example.demo.listener.MetricsPushJobListener;
 import com.example.demo.partition.MemberPartitioner;
+
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
+import jakarta.persistence.EntityManagerFactory;
 
 @Configuration
 @Import({ DataSourceConfig.class, NativeHintsConfig.class })
@@ -70,19 +71,17 @@ public class BatchConfig {
 	}
 
 	@Bean("masterStep")
-	Step masterStep(JobRepository jobRepository, MemberPartitioner partitioner,
-			Step workerStep, TaskExecutor taskExecutor) {
-		return new StepBuilder("masterStep", jobRepository)
-				.partitioner("memberPartitioner", partitioner)
-				.step(workerStep).gridSize(10)
-				.taskExecutor(taskExecutor).build();
+	Step masterStep(JobRepository jobRepository, MemberPartitioner partitioner, Step workerStep,
+			TaskExecutor taskExecutor) {
+		return new StepBuilder("masterStep", jobRepository).partitioner("memberPartitioner", partitioner)
+				.step(workerStep).gridSize(10).taskExecutor(taskExecutor).build();
 	}
 
 	@Bean("workerStep")
 	Step workerStep(JobRepository jobRepository, @Qualifier("memberDataSource") DataSource memberDataSource,
 			@Qualifier("memberTransactionManager") PlatformTransactionManager memberTransactionManager,
 			StepExecutionListener memberStepExecutionListener) {
-		return new StepBuilder("slaveStep",jobRepository).<Member, FullNameMember>chunk(100)
+		return new StepBuilder("slaveStep", jobRepository).<Member, FullNameMember>chunk(100)
 				.transactionManager(memberTransactionManager).listener(memberStepExecutionListener)
 				.reader(itemReader(null)).processor(itemProcessor()).writer(itemWriter(memberDataSource)).build();
 	}
@@ -106,9 +105,9 @@ public class BatchConfig {
 	}
 
 	@Bean
-	MemberPartitioner partitioner(JdbcTemplate jdbcTemplate,
+	MemberPartitioner partitioner(@Qualifier("entityManagerFactory") EntityManagerFactory entntyManagerFactory,
 			@Qualifier("memberRoutingDataSource") MemberRoutingDataSource memberDataSource) {
-		return new MemberPartitioner(jdbcTemplate, memberDataSource);
+		return new MemberPartitioner(entntyManagerFactory.createEntityManager(), memberDataSource);
 	}
 
 	@Bean

@@ -1,6 +1,5 @@
 package com.example.demo.partition;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,59 +9,50 @@ import javax.sql.DataSource;
 import org.springframework.batch.core.partition.support.MultiResourcePartitioner;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.boot.jdbc.DataSourceBuilder;
-import org.springframework.jdbc.core.JdbcOperations;
-import org.springframework.util.CollectionUtils;
 
-import com.example.demo.datasource.DataSourceProperties;
+import com.example.demo.datasource.DatabaseCredential;
 import com.example.demo.datasource.MemberRoutingDataSource;
 import com.example.demo.domain.Reservation;
 
+import jakarta.persistence.EntityManager;
+
 public class MemberPartitioner extends MultiResourcePartitioner {
 
-	private final JdbcOperations jdbcOperations;
+	private final EntityManager entityManager;
 
 	private final MemberRoutingDataSource memberDataSource;
 
-	public MemberPartitioner(JdbcOperations jdbcOperations, MemberRoutingDataSource memberDataSource) {
-		this.jdbcOperations = jdbcOperations;
+	public MemberPartitioner(EntityManager entityManager, MemberRoutingDataSource memberDataSource) {
+		this.entityManager = entityManager;
 		this.memberDataSource = memberDataSource;
 	}
 
 	@Override
 	public Map<String, ExecutionContext> partition(int gridSize) {
-		String reservationSql = "SELECT name, file_name FROM reservation ORDER BY name";
+		List<Reservation> reservationList = this.entityManager
+				.createQuery("SELECT r FROM reservation r ORDER BY name", Reservation.class).getResultList();
 
-		List<Reservation> reservationList = jdbcOperations.query(reservationSql,
-				(rs, rowNum) -> (new Reservation(rs.getString("name"), rs.getString("file_name"))));
-		List<String> nameList = reservationList.stream().map(Reservation::name).toList();
+		List<String> nameList = reservationList.stream().map(Reservation::getName).toList();
 
-		StringBuilder whereClause = new StringBuilder();
-		if (!CollectionUtils.isEmpty(nameList)) {
-			whereClause.append("WHERE name IN (");
-			whereClause.append(String.join(", ", Collections.nCopies(nameList.size(), "?")));
-			whereClause.append(") ");
-		}
-		StringBuilder dataSourceSql = new StringBuilder("SELECT name, host, user_name, password FROM database ");
-		dataSourceSql.append(whereClause);
-
-		List<DataSourceProperties> dataSourcePropertiesList = jdbcOperations.query(
-				dataSourceSql.toString(), (rs, rowNum) -> (new DataSourceProperties(rs.getString("name"),
-						rs.getString("host"), rs.getString("user_name"), rs.getString("password"))),
-				nameList.toArray());
+		String dataSourceJpql = "SELECT d FROM DatabaseCredential d WHERE d.name IN :nameList";
+		List<DatabaseCredential> dataSourcePropertiesList = this.entityManager
+				.createQuery(dataSourceJpql, DatabaseCredential.class).setParameter("nameList", nameList)
+				.getResultList();
 
 		Map<String, ExecutionContext> map = new HashMap<>();
 		int index = 0;
-		for (DataSourceProperties dataSourceProperties : dataSourcePropertiesList) {
+		for (DatabaseCredential dataSourceProperties : dataSourcePropertiesList) {
 			ExecutionContext executionContext = new ExecutionContext();
-			executionContext.put("name", reservationList.get(index).name());
-			executionContext.put("fileName", reservationList.get(index).fileName());
+			executionContext.put("name", reservationList.get(index).getName());
+			executionContext.put("fileName", reservationList.get(index).getFileName());
 
-			map.put(dataSourceProperties.name(), executionContext);
+			map.put(dataSourceProperties.getName(), executionContext);
 
 			DataSource dataSource = DataSourceBuilder.create().driverClassName("org.postgresql.Driver")
-					.url("jdbc:postgresql://" + dataSourceProperties.host() + ":5432/" + dataSourceProperties.name())
-					.username(dataSourceProperties.userName()).password(dataSourceProperties.password()).build();
-			this.memberDataSource.addDataSource(reservationList.get(index).name(), dataSource);
+					.url("jdbc:postgresql://" + dataSourceProperties.getHost() + ":5432/"
+							+ dataSourceProperties.getName())
+					.username(dataSourceProperties.getUserName()).password(dataSourceProperties.getPassword()).build();
+			this.memberDataSource.addDataSource(reservationList.get(index).getName(), dataSource);
 
 			index++;
 		}

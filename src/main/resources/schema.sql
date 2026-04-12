@@ -1,4 +1,4 @@
-CREATE TABLE reservation (
+CREATE TABLE IF NOT EXISTS reservation (
 	name VARCHAR(20) NOT NULL PRIMARY KEY,
 	file_name VARCHAR(100) NOT NULL
 );
@@ -6,13 +6,12 @@ INSERT INTO reservation VALUES ('test01', 'bon_jovi.csv');
 INSERT INTO reservation VALUES ('test02', 'metallica.csv');
 INSERT INTO reservation VALUES ('test03', 'iron_maiden.csv');
 
-CREATE TABLE database (
+CREATE TABLE IF NOT EXISTS database_credential (
 	name VARCHAR(20) NOT NULL PRIMARY KEY,
 	host VARCHAR(20) NOT NULL,
 	user_name VARCHAR(20) NOT NULL,
 	password VARCHAR(20) NOT NULL
 );
-INSERT INTO database VALUES('test01', 'localhost', 'test', 'test');
-INSERT INTO database VALUES('test02', 'localhost', 'test', 'test');
-INSERT INTO database VALUES('test03', 'localhost', 'test', 'test');
-
+INSERT INTO database_credential VALUES('test01', 'localhost', 'test', 'test');
+INSERT INTO database_credential VALUES('test02', 'localhost', 'test', 'test');
+INSERT INTO database_credential VALUES('test03', 'localhost', 'test', 'test');

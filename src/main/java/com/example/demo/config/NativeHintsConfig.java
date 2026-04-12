@@ -10,7 +10,7 @@ import org.springframework.context.annotation.ImportRuntimeHints;
 
 import com.example.demo.config.BatchConfig.MemberMapper;
 import com.example.demo.datasource.DataSourceKey;
-import com.example.demo.datasource.DataSourceProperties;
+import com.example.demo.datasource.DatabaseCredential;
 import com.example.demo.datasource.MemberRoutingDataSource;
 import com.example.demo.domain.FullNameMember;
 import com.example.demo.domain.Member;
@@ -56,7 +56,7 @@ public class NativeHintsConfig {
 							MemberCategory.INVOKE_PUBLIC_METHODS)
 					.registerType(Reservation.class, MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS,
 							MemberCategory.INVOKE_PUBLIC_METHODS)
-					.registerType(DataSourceProperties.class, MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS,
+					.registerType(DatabaseCredential.class, MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS,
 							MemberCategory.INVOKE_PUBLIC_METHODS);
 
 			// Register FieldSetMapper inner class for reflection
