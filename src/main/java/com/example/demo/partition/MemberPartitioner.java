@@ -30,31 +30,39 @@ public class MemberPartitioner extends MultiResourcePartitioner {
 	@Override
 	public Map<String, ExecutionContext> partition(int gridSize) {
 		List<Reservation> reservationList = this.entityManager
-				.createQuery("SELECT r FROM reservation r ORDER BY name", Reservation.class).getResultList();
+			.createQuery("SELECT r FROM reservation r ORDER BY name", Reservation.class)
+			.getResultList();
 
-		List<String> nameList = reservationList.stream().map(Reservation::getName).toList();
+		List<String> nameList = reservationList.stream()
+			.map(Reservation::getName)
+			.toList();
 
-		String dataSourceJpql = "SELECT d FROM DatabaseCredential d WHERE d.name IN :nameList";
 		List<DatabaseCredential> dataSourcePropertiesList = this.entityManager
-				.createQuery(dataSourceJpql, DatabaseCredential.class).setParameter("nameList", nameList)
-				.getResultList();
+			.createQuery("SELECT d FROM DatabaseCredential d WHERE d.name IN :nameList", DatabaseCredential.class)
+			.setParameter("nameList", nameList)
+			.getResultList();
 
 		Map<String, ExecutionContext> map = new HashMap<>();
 		int index = 0;
 		for (DatabaseCredential dataSourceProperties : dataSourcePropertiesList) {
 			ExecutionContext executionContext = new ExecutionContext();
-			executionContext.put("name", reservationList.get(index).getName());
-			executionContext.put("fileName", reservationList.get(index).getFileName());
+			executionContext.put("name", reservationList.get(index)
+				.getName());
+			executionContext.put("fileName", reservationList.get(index)
+				.getFileName());
 
 			map.put(dataSourceProperties.getName(), executionContext);
 
-			DataSource dataSource = DataSourceBuilder.create().driverClassName("org.postgresql.Driver")
-					.url("jdbc:postgresql://" + dataSourceProperties.getHost() + ":5432/"
-							+ dataSourceProperties.getName())
-					.username(dataSourceProperties.getUserName()).password(dataSourceProperties.getPassword()).build();
-			this.memberDataSource.addDataSource(reservationList.get(index).getName(), dataSource);
+			DataSource dataSource = DataSourceBuilder.create()
+				.driverClassName("org.postgresql.Driver")
+				.url("jdbc:postgresql://" + dataSourceProperties.getHost() + ":5432/" + dataSourceProperties.getName())
+				.username(dataSourceProperties.getUserName())
+				.password(dataSourceProperties.getPassword())
+				.build();
+			this.memberDataSource.addDataSource(reservationList.get(index)
+				.getName(), dataSource);
 
-			index++;
+			index++ ;
 		}
 
 		return map;
