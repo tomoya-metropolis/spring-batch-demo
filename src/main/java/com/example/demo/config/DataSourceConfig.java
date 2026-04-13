@@ -10,10 +10,8 @@ import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
-import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
-import org.springframework.transaction.PlatformTransactionManager;
 
 import com.example.demo.datasource.MemberRoutingDataSource;
 
@@ -52,10 +50,16 @@ public class DataSourceConfig {
 		return memberRoutingDataSource.determineTargetDataSource();
 	}
 
-	@Bean("transactionManager")
-	@Primary
-	PlatformTransactionManager transactionManager() {
-		return new DataSourceTransactionManager(dataSource());
+	@Bean("memberEntityManagerFactory")
+	@StepScope
+	LocalContainerEntityManagerFactoryBean memberLocalContainerEntityManagerFactoryBean(
+			MemberRoutingDataSource memberRoutingDataSource) {
+		LocalContainerEntityManagerFactoryBean factoryBean = new LocalContainerEntityManagerFactoryBean();
+		factoryBean.setPackagesToScan("com.example.demo.domain", "com.example.demo.datasource");
+		factoryBean.setPersistenceProvider(new HibernatePersistenceProvider());
+		factoryBean.setDataSource(memberDataSource(memberRoutingDataSource));
+
+		return factoryBean;
 	}
 
 	@Bean("jpaTransactionManager")
@@ -64,9 +68,10 @@ public class DataSourceConfig {
 		return new JpaTransactionManager(entityManagerFactory);
 	}
 
-	@Bean("memberTransactionManager")
-	PlatformTransactionManager memberTransactionManager(MemberRoutingDataSource memberRoutingDataSource) {
-		return new DataSourceTransactionManager(memberDataSource(memberRoutingDataSource));
+	@Bean("memberJpaTransactionManager")
+	JpaTransactionManager memberJpaTransactionManager(
+			@Qualifier("memberEntityManagerFactory") EntityManagerFactory memberEtityManagerFactory) {
+		return new JpaTransactionManager(memberEtityManagerFactory);
 	}
 
 }
