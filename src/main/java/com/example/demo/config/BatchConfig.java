@@ -1,7 +1,5 @@
 package com.example.demo.config;
 
-import javax.sql.DataSource;
-
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.builder.JobBuilder;
@@ -12,7 +10,7 @@ import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.infrastructure.item.ItemProcessor;
 import org.springframework.batch.infrastructure.item.ItemWriter;
-import org.springframework.batch.infrastructure.item.database.builder.JdbcBatchItemWriterBuilder;
+import org.springframework.batch.infrastructure.item.database.builder.JpaItemWriterBuilder;
 import org.springframework.batch.infrastructure.item.file.FlatFileItemReader;
 import org.springframework.batch.infrastructure.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.infrastructure.item.file.mapping.FieldSetMapper;
@@ -25,7 +23,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.VirtualThreadTaskExecutor;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.validation.BindException;
 
@@ -63,11 +60,10 @@ public class BatchConfig {
 
 	@Bean
 	@StepScope
-	ItemWriter<FullNameMember> itemWriter(@Qualifier("memberDataSource") DataSource memberDataSource) {
-		return new JdbcBatchItemWriterBuilder<FullNameMember>()
-				.namedParametersJdbcTemplate(new NamedParameterJdbcTemplate(memberDataSource))
-				.sql("INSERT INTO member (id, first_name, last_name, full_name) VALUES (:id, :firstName, :lastName, :fullName)")
-				.beanMapped().build();
+	ItemWriter<FullNameMember> itemWriter(
+			@Qualifier("memberEntityManagerFactory") EntityManagerFactory memberEntityManagerFactory) {
+		return new JpaItemWriterBuilder<FullNameMember>().entityManagerFactory(memberEntityManagerFactory)
+				.usePersist(true).build();
 	}
 
 	@Bean("masterStep")
@@ -78,12 +74,14 @@ public class BatchConfig {
 	}
 
 	@Bean("workerStep")
-	Step workerStep(JobRepository jobRepository, @Qualifier("memberDataSource") DataSource memberDataSource,
-			@Qualifier("memberTransactionManager") PlatformTransactionManager memberTransactionManager,
+	Step workerStep(JobRepository jobRepository,
+			@Qualifier("memberEntityManagerFactory") EntityManagerFactory memberEntityManagerFactory,
+			@Qualifier("memberJpaTransactionManager") PlatformTransactionManager memberJpaTransactionManager,
 			StepExecutionListener memberStepExecutionListener) {
 		return new StepBuilder("slaveStep", jobRepository).<Member, FullNameMember>chunk(100)
-				.transactionManager(memberTransactionManager).listener(memberStepExecutionListener)
-				.reader(itemReader(null)).processor(itemProcessor()).writer(itemWriter(memberDataSource)).build();
+				.transactionManager(memberJpaTransactionManager).listener(memberStepExecutionListener)
+				.reader(itemReader(null)).processor(itemProcessor()).writer(itemWriter(memberEntityManagerFactory))
+				.build();
 	}
 
 	@Bean
