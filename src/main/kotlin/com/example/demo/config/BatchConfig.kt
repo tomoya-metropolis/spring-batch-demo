@@ -10,16 +10,20 @@ import org.springframework.batch.core.step.builder.StepBuilder
 import org.springframework.batch.infrastructure.item.ItemProcessor
 import org.springframework.batch.infrastructure.item.ItemReader
 import org.springframework.batch.infrastructure.item.ItemWriter
+import org.springframework.batch.infrastructure.item.database.builder.JdbcBatchItemWriterBuilder
 import org.springframework.batch.infrastructure.item.file.FlatFileItemReader
 import org.springframework.batch.infrastructure.item.file.builder.FlatFileItemReaderBuilder
 import org.springframework.batch.infrastructure.item.file.mapping.FieldSetMapper
 import org.springframework.batch.infrastructure.item.file.transform.FieldSet
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Import
 import org.springframework.core.io.ClassPathResource
 import org.springframework.validation.BindException
+import javax.sql.DataSource
 
 @Configuration
+@Import(DataSourceConfig::class)
 class BatchConfig {
 
     @Bean
@@ -38,10 +42,12 @@ class BatchConfig {
         }
 
     @Bean
-    fun itemWriter(): ItemWriter<FullNameMember> =
-        ItemWriter { chunk ->
-            chunk.items.forEach { println(it) }
-        }
+    fun itemWriter(dataSource: DataSource): ItemWriter<FullNameMember> =
+        JdbcBatchItemWriterBuilder<FullNameMember>()
+            .dataSource(dataSource)
+            .sql("INSERT INTO member (id, first_name, last_name, full_name) VALUES (:id, :firstName, :lastName, :fullName)")
+            .beanMapped()
+            .build()
 
     @Bean
     fun step(
