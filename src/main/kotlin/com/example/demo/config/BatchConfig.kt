@@ -1,9 +1,11 @@
 package com.example.demo.config
 
+import com.example.demo.MemberStepListener
 import com.example.demo.domain.FullNameMember
 import com.example.demo.domain.Member
 import org.springframework.batch.core.job.Job
 import org.springframework.batch.core.job.builder.JobBuilder
+import org.springframework.batch.core.listener.StepExecutionListener
 import org.springframework.batch.core.repository.JobRepository
 import org.springframework.batch.core.step.Step
 import org.springframework.batch.core.step.builder.StepBuilder
@@ -19,6 +21,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
 import org.springframework.core.io.ClassPathResource
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.validation.BindException
 import javax.sql.DataSource
 
@@ -55,12 +58,18 @@ class BatchConfig {
         itemReader: ItemReader<Member>,
         itemProcessor: ItemProcessor<Member, FullNameMember>,
         itemWriter: ItemWriter<FullNameMember>,
+        stepExecutionListener: StepExecutionListener,
     ): Step =
         StepBuilder(jobRepository).chunk<Member, FullNameMember>(1)
             .reader(itemReader)
             .processor(itemProcessor)
             .writer(itemWriter)
+            .listener(stepExecutionListener)
             .build()
+
+    @Bean
+    fun memberStepListener(dataSource: DataSource): StepExecutionListener =
+        MemberStepListener(JdbcTemplate(dataSource))
 
     @Bean
     fun job(jobRepository: JobRepository, step: Step): Job =
