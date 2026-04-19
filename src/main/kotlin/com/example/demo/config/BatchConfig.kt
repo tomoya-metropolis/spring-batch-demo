@@ -17,6 +17,7 @@ import org.springframework.batch.infrastructure.item.file.FlatFileItemReader
 import org.springframework.batch.infrastructure.item.file.builder.FlatFileItemReaderBuilder
 import org.springframework.batch.infrastructure.item.file.mapping.FieldSetMapper
 import org.springframework.batch.infrastructure.item.file.transform.FieldSet
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
@@ -45,9 +46,9 @@ class BatchConfig {
         }
 
     @Bean
-    fun itemWriter(dataSource: DataSource): ItemWriter<FullNameMember> =
+    fun itemWriter(@Qualifier("businessDataSource") businessDataSource: DataSource): ItemWriter<FullNameMember> =
         JdbcBatchItemWriterBuilder<FullNameMember>()
-            .dataSource(dataSource)
+            .dataSource(businessDataSource)
             .sql("INSERT INTO member (id, first_name, last_name, full_name) VALUES (:id, :firstName, :lastName, :fullName)")
             .beanMapped()
             .build()
@@ -68,8 +69,8 @@ class BatchConfig {
             .build()
 
     @Bean
-    fun memberStepListener(dataSource: DataSource): StepExecutionListener =
-        MemberStepListener(JdbcTemplate(dataSource))
+    fun memberStepListener(@Qualifier("businessDataSource") businessDataSource: DataSource): StepExecutionListener =
+        MemberStepListener(JdbcTemplate(businessDataSource))
 
     @Bean
     fun job(jobRepository: JobRepository, step: Step): Job =
